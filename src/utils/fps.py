@@ -1,6 +1,5 @@
 import time
 
-
 class FPSSmoother:
     """Smooths FPS over a sliding time window."""
     def __init__(self, window_sec: float = 0.5):

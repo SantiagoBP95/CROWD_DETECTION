@@ -1,9 +1,26 @@
+"""
+overlay.py
+
+Small helper class that draws boxes, FPS and a small counts HUD onto frames
+using OpenCV primitives.
+"""
+
 from typing import Tuple
 import cv2
 
 DEFAULT_FONT = cv2.FONT_HERSHEY_SIMPLEX
 
+
 class Overlay:
+    """Drawing utilities for annotation overlays on BGR frames.
+
+    Methods:
+    - draw_box(frame, box, label): draw a labeled bounding box
+    - draw_fps(frame, fps): draw current FPS
+    - draw_counts(frame, current, average, max_count): draw a small
+      statistics panel with current/average/max counts.
+    """
+
     def __init__(self, font_scale: float = 0.6, font_thickness: int = 2):
         self.font = DEFAULT_FONT
         self.font_scale = font_scale
@@ -12,6 +29,7 @@ class Overlay:
     def draw_box(
         self, frame, box: Tuple[int, int, int, int], label: str, color=(255, 0, 0)
     ) -> None:
+        """Draw a rectangle with a filled label background."""
         x1, y1, x2, y2 = map(int, box)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         (tw, th), _ = cv2.getTextSize(label, self.font, self.font_scale, self.font_thickness)
@@ -20,17 +38,18 @@ class Overlay:
                     self.font_thickness, cv2.LINE_AA)
 
     def draw_fps(self, frame, fps: float) -> None:
+        """Draw FPS on the top-left of the frame."""
         cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), self.font, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
     def draw_counts(self, frame, current: int, average: float, max_count: int) -> None:
-        """Pequeño panel con Current / Average / Maximum."""
+        """Draw a compact panel showing Current / Average / Maximum counts."""
         pad = 8
         lines = [
             f"Current: {current}",
             f"Average: {average:.1f}",
             f"Maximum: {max_count}",
         ]
-        # medir el panel
+        # measure panel
         widths, heights = [], []
         for text in lines:
             (tw, th), _ = cv2.getTextSize(text, self.font, 0.6, self.font_thickness)

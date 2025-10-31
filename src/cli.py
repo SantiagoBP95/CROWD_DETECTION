@@ -1,12 +1,32 @@
+"""
+cli.py
+
+Utility to parse configuration for the application. Supports reading a YAML
+file with defaults and returns an argparse.Namespace compatible object used
+throughout the project.
+"""
+
 import argparse
 import os
 import yaml
 
 
 def parse_args():
+    """Load configuration from YAML (or fallbacks) and return a Namespace.
+
+    The function looks for a `--config` argument pointing to a YAML file. If
+    present, values from the YAML override the built-in fallbacks. The result
+    is coerced to common types (ints, floats, bools) and returned as an
+    argparse.Namespace for convenience.
+    """
     # Now: only read the YAML and return a Namespace built from it.
     pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument("--config", type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "config.yml"), help="Ruta al archivo YAML de configuración.")
+    pre.add_argument(
+        "--config",
+        type=str,
+        default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "config.yml"),
+        help="Path to YAML configuration file.",
+    )
     known, _ = pre.parse_known_args()
 
     cfg_path = known.config
@@ -86,7 +106,13 @@ def parse_args():
 
 
 def parse_source(src_str: str):
-    # Si es un número (sin comillas en CLI), úsalo como índice de cámara.
+    """Parse a source string into either an int (camera index) or path.
+
+    If the provided string can be converted to an int, the int is returned so
+    callers can open the corresponding camera index. Otherwise the original
+    string is returned and treated as a file path.
+    """
+    # If it's a number, use it as a camera index.
     try:
         return int(src_str)
     except ValueError:

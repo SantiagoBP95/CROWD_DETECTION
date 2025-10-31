@@ -1,9 +1,33 @@
+"""
+detector.py
+
+Wrapper around the Ultralytics YOLO model to provide a small, typed
+interface used by the pipeline.
+
+Exposes:
+- DetectorConfig: configuration container for the model and inference
+    parameters.
+- Detector: light wrapper that loads a YOLO model and provides an
+    `infer(frame)` method which returns a list of detections in the
+    form (xyxy_box, conf, class_id).
+"""
+
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 import numpy as np
 import torch
 from ultralytics import YOLO
 
 class DetectorConfig:
+    """Configuration holder for Detector.
+
+    Attributes:
+    - model_path: path to a .pt YOLO model
+    - img_size: inference image size
+    - conf_thres / iou_thres: thresholds for NMS and filtering
+    - device: device string or index (e.g. 'cpu' or 'cuda:0')
+    - class_whitelist: optional iterable of class names to keep
+    - max_det / agnostic_nms: passed to YOLO predict
+    """
     def __init__(
         self,
         model_path: str,
@@ -13,7 +37,7 @@ class DetectorConfig:
         device: Union[int, str] = 0,
         class_whitelist: Optional[Iterable[str]] = None,
         max_det: int = 3000,
-        agnostic_nms: bool = True
+        agnostic_nms: bool = True,
     ) -> None:
         self.model_path = model_path
         self.img_size = img_size
@@ -46,7 +70,11 @@ class Detector:
 
     @torch.inference_mode()
     def infer(self, frame) -> List[Tuple[Tuple[int, int, int, int], float, int]]:
-        """Returns list of (box_xyxy, conf, cls_id)."""
+        """Run inference on `frame` and return filtered detections.
+
+        Returns a list of tuples: ((x1, y1, x2, y2), confidence, class_id).
+        The coordinates are integers in pixel space.
+        """
         res = self.model.predict(
             frame,
             imgsz=self.cfg.img_size,

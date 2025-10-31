@@ -1,7 +1,13 @@
+"""
+utils package facade
+
+This module re-exports small helpers and provides top-level convenience
+functions used by the pipeline (component initialization, IO helpers and
+resource cleanup). It mostly delegates to the submodules under `src.utils`.
+"""
+
 import os
 import csv
-import time
-from typing import Optional, List
 import cv2
 import numpy as np
 from src.detector import Detector, DetectorConfig
@@ -25,9 +31,9 @@ from .processor import process_and_write_frame
 
 
 def init_components(cfg: 'DetectorConfig'):
-    """Inicializa detector, overlay, fps smoother y contador de personas.
+    """Initialize common processing components.
 
-    Devuelve (detector, overlay, fps_sm, people_counter, names).
+    Returns a tuple: (detector, overlay, fps_sm, people_counter, names).
     """
     detector = Detector(cfg)
     overlay = Overlay()
@@ -38,16 +44,17 @@ def init_components(cfg: 'DetectorConfig'):
 
 
 def open_video_io(source, out_path, base_dir, save_flag, reader=None, w=None, h=None, fps=None):
-    """Abre reader y writers, devuelve (reader, writer, heatmap_video_writer, summary_acc, w, h, fps, heatmap_video_path, heatmap_frames_written, heatmap_warned).
+    """Open reader and optional writers and return pipeline IO objects.
 
-    ``source`` puede ser int o ruta. Si reader no determina tamaño, caller deberá leer un frame.
+    Returns (reader, writer, heatmap_video_writer, summary_acc, w, h, fps,
+    heatmap_video_path, heatmap_frames_written, heatmap_warned).
     """
     if reader is None:
         reader = VideoReader(source)
-    # obtener tamaño y fps del reader
+    # obtain reader size and fps
     r_w, r_h = reader.get_size()
     r_fps = reader.get_fps()
-    # use provided w/h/fps cuando sean None
+    # use provided w/h/fps when available
     w = r_w if (w is None or r_w == 0) else (w if w is not None else r_w)
     h = r_h if (h is None or r_h == 0) else (h if h is not None else r_h)
     fps = r_fps if (fps is None) else fps
@@ -63,7 +70,7 @@ def open_video_io(source, out_path, base_dir, save_flag, reader=None, w=None, h=
         heatmap_dir = os.path.dirname(out_path) if os.path.dirname(out_path) else base_dir
         heatmap_video_path = os.path.join(heatmap_dir, f"heatmap_{os.path.splitext(os.path.basename(out_path))[0]}.mp4")
         heatmap_video_writer = VideoWriter(heatmap_video_path, (w, h), fps)
-        # comprobar apertura
+        # check writer open state
         try:
             ok = False
             if hasattr(heatmap_video_writer, 'writer') and heatmap_video_writer.writer is not None:
@@ -72,10 +79,10 @@ def open_video_io(source, out_path, base_dir, save_flag, reader=None, w=None, h=
                 except Exception:
                     ok = True
             if not ok:
-                print(f"[WARN] No se pudo abrir el writer para el video de heatmap: {heatmap_video_path}")
+                print(f"[WARN] Could not open heatmap video writer: {heatmap_video_path}")
                 heatmap_video_writer = None
             else:
-                print(f"[INFO] Se creará heatmap video en: {heatmap_video_path}")
+                print(f"[INFO] Will create heatmap video at: {heatmap_video_path}")
         except Exception:
             pass
 
@@ -86,11 +93,11 @@ def open_video_io(source, out_path, base_dir, save_flag, reader=None, w=None, h=
 
 
 def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, heatmap_frames_written, heatmap_warned, summary_acc=None, summary_acc_raw=None, out_path=None, kernel=None, metrics=None, csv_path=None):
-    """Libera recursos, guarda heatmap PNG opcional, CSV de métricas y reporta resumen.
+    """Release resources and optionally save summary artifacts.
 
-    Parameters
-    - metrics: lista de diccionarios con métricas por frame (opcional)
-    - csv_path: ruta donde escribir el CSV si se desea (opcional)
+    This will release the reader/writer objects, write the heatmap PNG (preferring
+    the raw, non-decayed accumulator when available), and write an optional CSV
+    with per-frame metrics.
     """
     try:
         reader.release()
@@ -103,18 +110,18 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
     if heatmap_video_writer is not None:
         try:
             heatmap_video_writer.release()
-            print(f"[INFO] Heatmap video guardado en: {heatmap_video_path}")
+            print(f"[INFO] Heatmap video saved at: {heatmap_video_path}")
         except Exception:
             pass
         try:
-            print(f"[INFO] Frames de heatmap escritos: {heatmap_frames_written}", flush=True)
+            print(f"[INFO] Heatmap frames written: {heatmap_frames_written}", flush=True)
             if os.path.exists(heatmap_video_path):
                 size = os.path.getsize(heatmap_video_path)
-                print(f"[INFO] Tamaño del archivo: {size} bytes -> {heatmap_video_path}", flush=True)
+                print(f"[INFO] File size: {size} bytes -> {heatmap_video_path}", flush=True)
         except Exception:
             pass
 
-    # guardar PNG resumen opcional. Preferimos el acumulador 'raw' (sin decaimiento)
+    # prefer the raw (non-decayed) accumulator when available
     acc_to_save = None
     if summary_acc_raw is not None:
         acc_to_save = summary_acc_raw
@@ -125,14 +132,13 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
         try:
             heatmap_png_path = os.path.join(os.path.dirname(out_path), f"heatmap_{os.path.splitext(os.path.basename(out_path))[0]}.png")
             save_heatmap_png(acc_to_save, heatmap_png_path, kernel=kernel if kernel is not None else 31)
-            print(f"[INFO] Heatmap PNG guardado en: {heatmap_png_path}")
+            print(f"[INFO] Heatmap PNG saved at: {heatmap_png_path}")
         except Exception:
             pass
 
-    # guardar CSV opcional (incluye métricas derivadas del acumulador)
+    # optional CSV (includes derived accumulator metrics)
     if csv_path:
         try:
-            # asegurar directorio padre
             ensure_dir(csv_path)
             fieldnames = ["frame", "timestamp", "count", "avg", "max", "fps", "sum_acc", "max_acc", "total_people"]
             with open(csv_path, "w", newline="", encoding="utf-8") as cf:
@@ -140,10 +146,9 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
                 writer_csv.writeheader()
                 if metrics:
                     for row in metrics:
-                        # asegurarse de tener solo las keys esperadas
                         writer_csv.writerow({k: row.get(k, "") for k in fieldnames})
-            print(f"[INFO] CSV de métricas guardado en: {csv_path}")
+            print(f"[INFO] Metrics CSV saved at: {csv_path}")
         except Exception as e:
-            print(f"[WARN] No se pudo guardar CSV de métricas en {csv_path}: {e}")
+            print(f"[WARN] Could not save metrics CSV at {csv_path}: {e}")
 
     cv2.destroyAllWindows()

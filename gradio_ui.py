@@ -91,14 +91,29 @@ def process_video_file(source_path: str, selected_outputs: List[str], extra: Dic
                 break
             heatmap_frames_written, heatmap_warned = process_and_write_frame(f, detector, overlay, fps_sm, people_counter, summary_acc, writer, heatmap_video_writer, args, w, h, heatmap_frames_written, heatmap_warned, summary_acc_raw=summary_acc_raw)
     finally:
+        # Ensure we store a PNG derived from the raw accumulator (without decay)
+        # in case the pipeline or cleanup uses the decayed accumulator.
+        try:
+            from src.utils import save_heatmap_png
+            hpng_raw = os.path.join(os.path.dirname(args.out), f"heatmap_raw_{os.path.splitext(os.path.basename(args.out))[0]}.png")
+            save_heatmap_png(summary_acc_raw, hpng_raw, kernel=args.heatmap_kernel)
+        except Exception:
+            hpng_raw = None
+
         cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, heatmap_frames_written, heatmap_warned, summary_acc=summary_acc, summary_acc_raw=summary_acc_raw, out_path=args.out, kernel=args.heatmap_kernel, metrics=None, csv_path=args.csv)
 
     results = {}
     if os.path.exists(args.out):
         results['detections'] = args.out
-    hpng = os.path.join(os.path.dirname(args.out), f"heatmap_{os.path.splitext(os.path.basename(args.out))[0]}.png")
-    if os.path.exists(hpng):
-        results['heatmap_png'] = hpng
+    # Prefer the raw accumulator PNG if we created it, otherwise fallback to the one
+    # created by cleanup_resources.
+    hpng_raw_path = os.path.join(os.path.dirname(args.out), f"heatmap_raw_{os.path.splitext(os.path.basename(args.out))[0]}.png")
+    if os.path.exists(hpng_raw_path):
+        results['heatmap_png'] = hpng_raw_path
+    else:
+        hpng = os.path.join(os.path.dirname(args.out), f"heatmap_{os.path.splitext(os.path.basename(args.out))[0]}.png")
+        if os.path.exists(hpng):
+            results['heatmap_png'] = hpng
     if heatmap_video_path and os.path.exists(heatmap_video_path):
         results['heatmap_video'] = heatmap_video_path
     if args.csv and os.path.exists(args.csv):

@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from typing import Optional
 from .paths import ensure_dir, ensure_odd_kernel
 
 

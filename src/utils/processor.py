@@ -5,12 +5,35 @@ from .paths import ensure_odd_kernel
 from .heatmap import heatmap_colorize
 
 
-def process_and_write_frame(frame, detector, overlay, fps_sm, people_counter, summary_acc, writer, heatmap_video_writer, args, w, h, heatmap_frames_written, heatmap_warned, summary_acc_raw=None) -> Tuple[int, bool]:
-    """Procesa un frame (inferencia, dibujado, heatmap) y escribe salidas.
+def process_and_write_frame(
+    frame,
+    detector,
+    overlay,
+    fps_sm,
+    people_counter,
+    summary_acc,
+    writer,
+    heatmap_video_writer,
+    args,
+    w,
+    h,
+    heatmap_frames_written,
+    heatmap_warned,
+    summary_acc_raw=None,
+) -> Tuple[int, bool]:
+    """Process a single frame: run inference, update accumulators and draw overlays.
 
-    Devuelve (heatmap_frames_written, heatmap_warned).
+    Steps:
+    - Run detector.infer(frame)
+    - Update people counter and accumulators
+    - Draw boxes, HUD and FPS
+    - Optionally write heatmap frames and annotated frames to the writers
+
+    Returns:
+        (heatmap_frames_written, heatmap_warned)
     """
-    names = getattr(detector, 'names', getattr(getattr(detector, 'model', {}), 'names', {}))
+
+    names = getattr(detector, "names", getattr(getattr(detector, "model", {}), "names", {}))
     dets = detector.infer(frame)
     current_count = len(dets)
     people_counter.update(current_count)
@@ -24,7 +47,7 @@ def process_and_write_frame(frame, detector, overlay, fps_sm, people_counter, su
         cy = (y1 + y2) / 2.0
         centers.append((cx, cy))
 
-    # decaimiento del acumulador
+    # accumulator decay
     try:
         decay = float(args.heatmap_decay)
     except Exception:
@@ -36,13 +59,12 @@ def process_and_write_frame(frame, detector, overlay, fps_sm, people_counter, su
         ix = int(round(cx))
         iy = int(round(cy))
         if 0 <= ix < w and 0 <= iy < h:
-            # increment both the decayable accumulator (summary_acc)
-            # and the raw accumulator used for final PNG (summary_acc_raw)
+            # increment both the decayable accumulator and the raw accumulator
             summary_acc[iy, ix] += 1.0
             if summary_acc_raw is not None:
                 summary_acc_raw[iy, ix] += 1.0
 
-    # heatmap frame
+    # heatmap frame generation
     if heatmap_video_writer is not None:
         k_vid = args.heatmap_video_kernel if args.heatmap_video_kernel is not None else args.heatmap_kernel
         k = ensure_odd_kernel(k_vid, default=1)
@@ -66,7 +88,7 @@ def process_and_write_frame(frame, detector, overlay, fps_sm, people_counter, su
 
         try:
             opened = False
-            if hasattr(heatmap_video_writer, 'writer') and heatmap_video_writer.writer is not None:
+            if hasattr(heatmap_video_writer, "writer") and heatmap_video_writer.writer is not None:
                 try:
                     opened = bool(heatmap_video_writer.writer.isOpened())
                 except Exception:
@@ -76,18 +98,18 @@ def process_and_write_frame(frame, detector, overlay, fps_sm, people_counter, su
                 heatmap_frames_written += 1
             else:
                 if not heatmap_warned:
-                    print(f"[WARN] heatmap_video_writer no está abierto; no se escribirán frames de heatmap.")
+                    print(f"[WARN] heatmap_video_writer is not open; heatmap frames will not be written.")
                     heatmap_warned = True
         except Exception:
             if not heatmap_warned:
-                print(f"[WARN] error al intentar escribir frame del heatmap")
+                print(f"[WARN] error while attempting to write heatmap frame")
                 heatmap_warned = True
 
-    # HUD, mostrar y escribir frame
+    # HUD, draw and write frame
     overlay.draw_counts(frame, people_counter.current, people_counter.average, people_counter.max_count)
     overlay.draw_fps(frame, fps_sm.tick())
-    cv2.imshow("Detección en tiempo real (YOLO)", frame)
-    if writer is not None and writer.writer is not None:
+    cv2.imshow("Real-time detection (YOLO)", frame)
+    if writer is not None and getattr(writer, "writer", None) is not None:
         writer.write(frame)
 
     return heatmap_frames_written, heatmap_warned
