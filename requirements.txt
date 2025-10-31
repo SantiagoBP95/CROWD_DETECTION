@@ -2,3 +2,5 @@ opencv-python
 ultralytics
 torch
 numpy
+PyYAML
+gradio

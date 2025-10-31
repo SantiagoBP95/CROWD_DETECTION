@@ -1,0 +1,50 @@
+# Configuración por defecto para CROWD_DETECTION
+# Puedes sobrescribir estos valores desde la línea de comandos o modificando este archivo.
+# Tip: mantiene los tipos: booleanos (true/false), números y strings.
+
+# Ruta al modelo YOLO (.pt)
+model: "models/best.pt"
+
+# Fuente de video: puede ser índice de cámara (0, 1) o ruta a archivo
+source: "data/input/input2.mp4"
+
+# Tamaño de entrada para el modelo
+imgsz: 896
+
+# Umbrales de inferencia
+conf: 0.10
+iou: 0.30
+
+# Dispositivo para torch: 'cpu', 'cuda:0', o índice como string que mapeará a cuda:<idx>
+device: null
+
+# Guardado de salida
+save: true
+out: "output/salida_detectada.mp4"
+
+# Clases permitidas (coma-separadas o nombre único)
+classes: "head"
+
+# Máximo número de detecciones por imagen
+max_det: 3000
+
+# Usar NMS agnóstico
+agnostic_nms: false
+
+# Heatmap dinámico y parámetros asociados
+heatmap: false
+heatmap_alpha: 0.6
+heatmap_decay: 0.9
+heatmap_kernel: 31
+heatmap_video_kernel: null
+
+# CSV opcional de métricas por frame. Si es null o vacío no se genera.
+csv: "output/metrics.csv"
+ 
+# Intervalo en segundos para guardar un PNG intermedio del heatmap (usando acumulador sin decaimiento).
+# Si es null o 0, no se generan PNG intermedios. Si se proporciona, se sobrescribe `heatmap_live.png` en la carpeta de salida.
+heatmap_png_interval: null
+
+# Opciones avanzadas (dejadas como null por defecto)
+# Puedes añadir aquí otros parámetros que necesites centralizar.
+
