@@ -3,13 +3,11 @@
 This file provides a clean, single-entry Gradio app. Run with:
 
     python gradio_ui.py
-
-If you prefer to keep the original gradio_app.py, run this instead to avoid the corrupted file.
 """
 import os
 import sys
 import time
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 import gradio as gr
 
@@ -120,25 +118,51 @@ def launch():
                 decay = gr.Number(value=0.9, label="Heatmap decay")
                 run = gr.Button("Run")
                 status = gr.Textbox(label="Status", lines=6)
-                out_file = gr.File(label="Results (zip)")
+                # separate outputs
+                detections_play = gr.Video(label="Detections (playable)")
+                detections_file = gr.File(label="Detections (download)")
+                heatmap_play = gr.Video(label="Heatmap video (playable)")
+                heatmap_play_file = gr.File(label="Heatmap video (download)")
+                heatmap_png_preview = gr.Image(label="Heatmap PNG preview")
+                heatmap_png_file = gr.File(label="Heatmap PNG (download)")
+                csv_file = gr.File(label="CSV (download)")
 
                 def run_upload(file, outs, k, d):
                     if not file:
-                        return "No file", None
+                        return "No file", None, None, None, None, None, None
                     res = process_video_file(file.name if hasattr(file, 'name') else file, outs or [], {"heatmap_kernel": k, "heatmap_decay": d})
                     if res.get('error'):
-                        return res['error'], None
-                    files = [v for v in res.values() if v]
-                    if not files:
-                        return "No outputs", None
-                    zip_path = os.path.join(os.path.dirname(files[0]), 'results.zip')
-                    import zipfile
-                    with zipfile.ZipFile(zip_path, 'w') as zf:
-                        for f in files:
-                            zf.write(f, arcname=os.path.basename(f))
-                    return "Done", zip_path
+                        return res['error'], None, None, None, None, None, None
+                    # collect paths
+                    det = res.get('detections')
+                    hvid = res.get('heatmap_video')
+                    hpng = res.get('heatmap_png')
+                    csvp = res.get('csv')
+                    # prepare preview image for heatmap png
+                    img = None
+                    if hpng and os.path.exists(hpng):
+                        try:
+                            from PIL import Image
+                            img = Image.open(hpng)
+                        except Exception:
+                            img = None
 
-                run.click(run_upload, inputs=[upload, outputs, kernel, decay], outputs=[status, out_file])
+                    return (
+                        "Done",
+                        det if det and os.path.exists(det) else None,
+                        det if det and os.path.exists(det) else None,
+                        hvid if hvid and os.path.exists(hvid) else None,
+                        hvid if hvid and os.path.exists(hvid) else None,
+                        img,
+                        hpng if hpng and os.path.exists(hpng) else None,
+                        csvp if csvp and os.path.exists(csvp) else None,
+                    )
+
+                run.click(
+                    run_upload,
+                    inputs=[upload, outputs, kernel, decay],
+                    outputs=[status, detections_play, detections_file, heatmap_play, heatmap_play_file, heatmap_png_preview, heatmap_png_file, csv_file],
+                )
 
             with gr.TabItem("Camera"):
                 cam = _make_video_component('webcam', 'Record from webcam')
@@ -147,25 +171,47 @@ def launch():
                 decay2 = gr.Number(value=0.9, label="Heatmap decay")
                 run2 = gr.Button("Run")
                 status2 = gr.Textbox(label="Status", lines=6)
-                out2 = gr.File(label="Results (zip)")
+                detections_play2 = gr.Video(label="Detections (playable)")
+                detections_file2 = gr.File(label="Detections (download)")
+                heatmap_play2 = gr.Video(label="Heatmap video (playable)")
+                heatmap_play_file2 = gr.File(label="Heatmap video (download)")
+                heatmap_png_preview2 = gr.Image(label="Heatmap PNG preview")
+                heatmap_png_file2 = gr.File(label="Heatmap PNG (download)")
+                csv_file2 = gr.File(label="CSV (download)")
 
                 def run_cam(video_path, outs, k, d):
                     if not video_path:
-                        return "No camera clip", None
+                        return "No camera clip", None, None, None, None, None, None
                     res = process_video_file(video_path, outs or [], {"heatmap_kernel": k, "heatmap_decay": d})
                     if res.get('error'):
-                        return res['error'], None
-                    files = [v for v in res.values() if v]
-                    if not files:
-                        return "No outputs", None
-                    zip_path = os.path.join(os.path.dirname(files[0]), 'results.zip')
-                    import zipfile
-                    with zipfile.ZipFile(zip_path, 'w') as zf:
-                        for f in files:
-                            zf.write(f, arcname=os.path.basename(f))
-                    return "Done", zip_path
+                        return res['error'], None, None, None, None, None, None
+                    det = res.get('detections')
+                    hvid = res.get('heatmap_video')
+                    hpng = res.get('heatmap_png')
+                    csvp = res.get('csv')
+                    img = None
+                    if hpng and os.path.exists(hpng):
+                        try:
+                            from PIL import Image
+                            img = Image.open(hpng)
+                        except Exception:
+                            img = None
+                    return (
+                        "Done",
+                        det if det and os.path.exists(det) else None,
+                        det if det and os.path.exists(det) else None,
+                        hvid if hvid and os.path.exists(hvid) else None,
+                        hvid if hvid and os.path.exists(hvid) else None,
+                        img,
+                        hpng if hpng and os.path.exists(hpng) else None,
+                        csvp if csvp and os.path.exists(csvp) else None,
+                    )
 
-                run2.click(run_cam, inputs=[cam, outputs2, kernel2, decay2], outputs=[status2, out2])
+                run2.click(
+                    run_cam,
+                    inputs=[cam, outputs2, kernel2, decay2],
+                    outputs=[status2, detections_play2, detections_file2, heatmap_play2, heatmap_play_file2, heatmap_png_preview2, heatmap_png_file2, csv_file2],
+                )
 
     demo.launch()
 
