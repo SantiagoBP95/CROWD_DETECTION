@@ -83,13 +83,51 @@ def process_video_file(source_path: str, selected_outputs: List[str], extra: Dic
 
     reader, writer, heatmap_video_writer, summary_acc, w, h, fps, heatmap_video_path, heatmap_frames_written, heatmap_warned = open_video_io(source_path, args.out, ROOT, args.save, reader=reader, w=w, h=h, fps=fps)
     summary_acc_raw = np.zeros_like(summary_acc)
+    metrics = []
+    frame_idx = 0
 
     try:
         while True:
             f = reader.read()
             if f is None:
                 break
-            heatmap_frames_written, heatmap_warned = process_and_write_frame(f, detector, overlay, fps_sm, people_counter, summary_acc, writer, heatmap_video_writer, args, w, h, heatmap_frames_written, heatmap_warned, summary_acc_raw=summary_acc_raw)
+            heatmap_frames_written, heatmap_warned = process_and_write_frame(
+                f,
+                detector,
+                overlay,
+                fps_sm,
+                people_counter,
+                summary_acc,
+                writer,
+                heatmap_video_writer,
+                args,
+                w,
+                h,
+                heatmap_frames_written,
+                heatmap_warned,
+                summary_acc_raw=summary_acc_raw,
+            )
+            # collect per-frame metrics (so CSV can be written later)
+            try:
+                sum_acc = float(summary_acc_raw.sum()) if summary_acc_raw is not None else 0.0
+            except Exception:
+                sum_acc = 0.0
+            try:
+                max_acc = float(summary_acc_raw.max()) if summary_acc_raw is not None else 0.0
+            except Exception:
+                max_acc = 0.0
+            metrics.append({
+                "frame": frame_idx,
+                "timestamp": time.time(),
+                "count": people_counter.current,
+                "avg": people_counter.average,
+                "max": people_counter.max_count,
+                "fps": float(getattr(fps_sm, "fps", 0.0)),
+                "sum_acc": sum_acc,
+                "max_acc": max_acc,
+                "total_people": people_counter.total,
+            })
+            frame_idx += 1
     finally:
         # Ensure we store a PNG derived from the raw accumulator (without decay)
         # in case the pipeline or cleanup uses the decayed accumulator.
@@ -100,7 +138,20 @@ def process_video_file(source_path: str, selected_outputs: List[str], extra: Dic
         except Exception:
             hpng_raw = None
 
-        cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, heatmap_frames_written, heatmap_warned, summary_acc=summary_acc, summary_acc_raw=summary_acc_raw, out_path=args.out, kernel=args.heatmap_kernel, metrics=None, csv_path=args.csv)
+        cleanup_resources(
+            reader,
+            writer,
+            heatmap_video_writer,
+            heatmap_video_path,
+            heatmap_frames_written,
+            heatmap_warned,
+            summary_acc=summary_acc,
+            summary_acc_raw=summary_acc_raw,
+            out_path=args.out,
+            kernel=args.heatmap_kernel,
+            metrics=metrics,
+            csv_path=args.csv,
+        )
 
     results = {}
     if os.path.exists(args.out):
