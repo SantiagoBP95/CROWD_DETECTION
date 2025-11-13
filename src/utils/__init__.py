@@ -139,6 +139,8 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
     # optional CSV (includes derived accumulator metrics)
     if csv_path:
         try:
+            rows = len(metrics) if metrics else 0
+            print(f"[INFO] Writing CSV with {rows} rows to: {csv_path}")
             ensure_dir(csv_path)
             fieldnames = ["frame", "timestamp", "count", "avg", "max", "fps", "sum_acc", "max_acc", "total_people"]
             with open(csv_path, "w", newline="", encoding="utf-8") as cf:

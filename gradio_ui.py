@@ -138,6 +138,7 @@ def process_video_file(source_path: str, selected_outputs: List[str], extra: Dic
         except Exception:
             hpng_raw = None
 
+            print(f"[DEBUG] CSV path={args.csv}, collected_metric_rows={len(metrics)}")
         cleanup_resources(
             reader,
             writer,
