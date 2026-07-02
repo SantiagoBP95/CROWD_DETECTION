@@ -1,0 +1,16 @@
+# Trained model weights — binary artifacts, don't belong in version control
+models/*.pt
+*.pt
+
+# Generated inference outputs (videos, heatmaps, CSVs)
+output/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

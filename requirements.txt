@@ -1,6 +1,6 @@
-opencv-python
-ultralytics
-torch
-numpy
-PyYAML
-gradio
+opencv-python>=4.9.0
+ultralytics>=8.2.0
+torch>=2.2.0
+numpy>=1.26.0
+PyYAML>=6.0
+gradio>=4.28.0

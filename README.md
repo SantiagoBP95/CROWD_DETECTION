@@ -1,15 +1,12 @@
-# YOLO Real-time Modular App
-```markdown
 # CROWD_DETECTION — YOLO Real-time Modular App
 
-This repository contains a small modular application for running YOLO-based
-object detection in real-time (camera or video file), producing:
+Modular application for running YOLO-based object detection in real-time (camera or video file), producing:
 
 - A detections video with bounding boxes and overlays.
 - An optional heatmap video and heatmap PNG summarizing the accumulated detections.
 - An optional CSV file with per-frame metrics.
 
-Project structure (top-level):
+## Project structure (top-level)
 
 ```
 CROWD_DETECTION/
@@ -24,8 +21,8 @@ CROWD_DETECTION/
   README.md
 ```
 
-Getting started
------------------
+## Getting started
+
 Create a virtual environment and install dependencies:
 
 ```powershell
@@ -47,35 +44,34 @@ python main.py --model "C:/path/to/best.pt" --source "C:/path/to/video.mp4" --im
 ```
 
 Keyboard shortcuts (when the OpenCV window is shown):
-- Esc or 'q': exit the application
+- `Esc` or `q`: exit the application
 
-Notes about the Gradio UI
--------------------------
+## Gradio UI
+
 Run the web UI with:
 
 ```powershell
 python gradio_ui.py
 ```
 
-The Gradio interface provides two tabs: Upload (send a video file) and Camera
-(record a short clip). Outputs (detections video, heatmap video, heatmap PNG and
-CSV) are available for preview (when supported by the browser) and download.
+The Gradio interface provides two tabs: Upload (send a video file) and Camera (record a short clip). Outputs (detections video, heatmap video, heatmap PNG and CSV) are available for preview (when supported by the browser) and download.
 
-YOLO fine-tuning command
--------------------------
-The models used in this project were fine-tuned using the Ultralytics YOLO
-training command. An example command to fine-tune a detection model looks like:
+## YOLO fine-tuning command
+
+The models used in this project were fine-tuned using the Ultralytics YOLO training command. An example command to fine-tune a detection model looks like:
 
 ```bash
 # Example (adjust dataset, model and hyperparameters to your setup):
 yolo task=detect mode=train model=yolov8n.pt data=./data/dataset.yaml epochs=50 imgsz=640 batch=16 lr=0.01
 ```
 
-Replace `yolov8n.pt`, `./data/dataset.yaml`, and hyperparameters with the values
-you used when fine-tuning. If you used a different YOLO version (Ultralytics
-v4/v5 or custom training), adapt the command accordingly.
+Replace `yolov8n.pt`, `./data/dataset.yaml`, and hyperparameters with the values you used when fine-tuning. If you used a different YOLO version (Ultralytics v4/v5 or custom training), adapt the command accordingly.
 
-.
+## Training results
 
-```
+![Confusion matrix](results/confusion_matrix.png)
+![Precision-Recall curve](results/BoxPR_curve.png)
 
+## Model weights
+
+Trained weights (`best.pt`, `last.pt`) are not tracked in git — they're binary artifacts that don't belong in version control history. Train your own with the command above, or reach out for the pretrained weights used in the demo.
