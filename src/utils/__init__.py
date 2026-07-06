@@ -6,6 +6,7 @@ functions used by the pipeline (component initialization, IO helpers and
 resource cleanup). It mostly delegates to the submodules under `src.utils`.
 """
 
+import logging
 import os
 import csv
 import cv2
@@ -14,6 +15,8 @@ from src.detector import Detector, DetectorConfig
 from src.video_io import VideoReader, VideoWriter
 from src.overlay import Overlay
 from src.metrics import RunningCount
+
+logger = logging.getLogger(__name__)
 
 # re-export / adapters: move specialized helpers to submodules for clarity
 from .paths import normalize_path, ensure_dir, parse_classes, ensure_odd_kernel
@@ -77,14 +80,15 @@ def open_video_io(source, out_path, base_dir, save_flag, reader=None, w=None, h=
                 try:
                     ok = bool(heatmap_video_writer.writer.isOpened())
                 except Exception:
-                    ok = True
+                    logger.exception("Failed to query heatmap video writer open state")
+                    ok = False
             if not ok:
                 print(f"[WARN] Could not open heatmap video writer: {heatmap_video_path}")
                 heatmap_video_writer = None
             else:
                 print(f"[INFO] Will create heatmap video at: {heatmap_video_path}")
         except Exception:
-            pass
+            logger.exception("Failed to initialize heatmap video writer at %s", heatmap_video_path)
 
     return reader, writer, heatmap_video_writer, summary_acc, w, h, fps, heatmap_video_path, heatmap_frames_written, heatmap_warned
 
@@ -102,24 +106,24 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
     try:
         reader.release()
     except Exception:
-        pass
+        logger.exception("Failed to release video reader")
     try:
         writer.release()
     except Exception:
-        pass
+        logger.exception("Failed to release video writer")
     if heatmap_video_writer is not None:
         try:
             heatmap_video_writer.release()
             print(f"[INFO] Heatmap video saved at: {heatmap_video_path}")
         except Exception:
-            pass
+            logger.exception("Failed to release heatmap video writer")
         try:
             print(f"[INFO] Heatmap frames written: {heatmap_frames_written}", flush=True)
             if os.path.exists(heatmap_video_path):
                 size = os.path.getsize(heatmap_video_path)
                 print(f"[INFO] File size: {size} bytes -> {heatmap_video_path}", flush=True)
         except Exception:
-            pass
+            logger.exception("Failed to stat heatmap video file")
 
     # prefer the raw (non-decayed) accumulator when available
     acc_to_save = None
@@ -134,7 +138,7 @@ def cleanup_resources(reader, writer, heatmap_video_writer, heatmap_video_path, 
             save_heatmap_png(acc_to_save, heatmap_png_path, kernel=kernel if kernel is not None else 31)
             print(f"[INFO] Heatmap PNG saved at: {heatmap_png_path}")
         except Exception:
-            pass
+            logger.exception("Failed to save heatmap PNG at %s", heatmap_png_path)
 
     # optional CSV (includes derived accumulator metrics)
     if csv_path:

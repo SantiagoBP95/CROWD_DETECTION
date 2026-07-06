@@ -4,12 +4,33 @@ This file provides a clean, single-entry Gradio app. Run with:
 
     python gradio_ui.py
 """
+import logging
 import os
 import sys
 import time
+import shutil
 from typing import List, Dict
 
 import gradio as gr
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+MAX_UPLOAD_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB
+
+
+def _validate_source_path(source_path: str) -> str | None:
+    """Return an error message if the uploaded file is not an acceptable video, else None."""
+    if not source_path or not os.path.isfile(source_path):
+        return "El archivo subido no existe o no es accesible."
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext not in ALLOWED_VIDEO_EXTENSIONS:
+        return f"Extensión no soportada: {ext}. Usa uno de {sorted(ALLOWED_VIDEO_EXTENSIONS)}."
+    size = os.path.getsize(source_path)
+    if size > MAX_UPLOAD_SIZE_BYTES:
+        return f"El archivo pesa {size / (1024*1024):.1f} MB, supera el máximo de {MAX_UPLOAD_SIZE_BYTES // (1024*1024)} MB."
+    return None
 
 # Ensure project root on sys.path
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -26,6 +47,8 @@ import numpy as np
 
 
 def _make_video_component(kind: str, label: str):
+    if kind == "webcam" and shutil.which("ffmpeg") is None:
+        return gr.File(file_count="single", label=f"{label} (ffmpeg no encontrado: sube un clip)")
     # Try robust signatures
     try:
         return gr.Video(sources=[kind], label=label)
@@ -44,13 +67,34 @@ def _make_args_for_run(out_dir: str, basename: str, selected_outputs: List[str],
     args.csv = os.path.join(out_dir, f"{basename}.csv") if "CSV" in selected_outputs else None
     args.heatmap = "Heatmap video" in selected_outputs or "Heatmap png" in selected_outputs
     if extra.get("heatmap_kernel") is not None:
-        args.heatmap_kernel = int(extra.get("heatmap_kernel"))
+        try:
+            kernel = int(extra.get("heatmap_kernel"))
+            if kernel < 1:
+                kernel = 1
+            if kernel % 2 == 0:
+                kernel += 1
+            args.heatmap_kernel = kernel
+        except (TypeError, ValueError):
+            pass
     if extra.get("heatmap_decay") is not None:
-        args.heatmap_decay = float(extra.get("heatmap_decay"))
+        try:
+            decay = float(extra.get("heatmap_decay"))
+            if decay < 0.0:
+                decay = 0.0
+            elif decay > 1.0:
+                decay = 1.0
+            args.heatmap_decay = decay
+        except (TypeError, ValueError):
+            pass
     return args
 
 
 def process_video_file(source_path: str, selected_outputs: List[str], extra: Dict):
+    validation_error = _validate_source_path(source_path)
+    if validation_error:
+        logger.warning("Rejected upload %s: %s", source_path, validation_error)
+        return {"error": validation_error}
+
     ts = int(time.time())
     basename = f"gradio_{ts}"
     out_dir = os.path.join("output", "gradio", str(ts))
@@ -138,7 +182,7 @@ def process_video_file(source_path: str, selected_outputs: List[str], extra: Dic
         except Exception:
             hpng_raw = None
 
-            print(f"[DEBUG] CSV path={args.csv}, collected_metric_rows={len(metrics)}")
+        print(f"[DEBUG] CSV path={args.csv}, collected_metric_rows={len(metrics)}")
         cleanup_resources(
             reader,
             writer,
@@ -196,10 +240,10 @@ def launch():
 
                 def run_upload(file, outs, k, d):
                     if not file:
-                        return "No file", None, None, None, None, None, None
+                        return "No file", None, None, None, None, None, None, None
                     res = process_video_file(file.name if hasattr(file, 'name') else file, outs or [], {"heatmap_kernel": k, "heatmap_decay": d})
                     if res.get('error'):
-                        return res['error'], None, None, None, None, None, None
+                        return res['error'], None, None, None, None, None, None, None
                     # collect paths
                     det = res.get('detections')
                     hvid = res.get('heatmap_video')
@@ -248,10 +292,11 @@ def launch():
 
                 def run_cam(video_path, outs, k, d):
                     if not video_path:
-                        return "No camera clip", None, None, None, None, None, None
-                    res = process_video_file(video_path, outs or [], {"heatmap_kernel": k, "heatmap_decay": d})
+                        return "No camera clip", None, None, None, None, None, None, None
+                    source_path = video_path.name if hasattr(video_path, 'name') else video_path
+                    res = process_video_file(source_path, outs or [], {"heatmap_kernel": k, "heatmap_decay": d})
                     if res.get('error'):
-                        return res['error'], None, None, None, None, None, None
+                        return res['error'], None, None, None, None, None, None, None
                     det = res.get('detections')
                     hvid = res.get('heatmap_video')
                     hpng = res.get('heatmap_png')
@@ -280,7 +325,11 @@ def launch():
                     outputs=[status2, detections_play2, detections_file2, heatmap_play2, heatmap_play_file2, heatmap_png_preview2, heatmap_png_file2, csv_file2],
                 )
 
-    demo.launch()
+    # Bind to localhost only and disable public link generation by default;
+    # set CROWD_DETECTION_HOST/SHARE env vars to expose it deliberately on a LAN.
+    server_name = os.environ.get("CROWD_DETECTION_HOST", "127.0.0.1")
+    share = os.environ.get("CROWD_DETECTION_SHARE", "false").lower() in ("1", "true", "yes")
+    demo.launch(server_name=server_name, share=share)
 
 
 if __name__ == "__main__":

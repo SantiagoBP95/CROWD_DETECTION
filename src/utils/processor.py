@@ -1,8 +1,12 @@
+import logging
+
 import cv2
 import numpy as np
 from typing import Tuple
 from .paths import ensure_odd_kernel
 from .heatmap import heatmap_colorize
+
+logger = logging.getLogger(__name__)
 
 
 def process_and_write_frame(
@@ -71,12 +75,13 @@ def process_and_write_frame(
         try:
             heat_col = heatmap_colorize(summary_acc, kernel=k)
         except Exception:
+            logger.exception("heatmap_colorize failed, falling back to manual blur/colormap")
             summary_vis = summary_acc.copy()
             if k > 1:
                 try:
                     summary_vis = cv2.GaussianBlur(summary_vis, (k, k), 0)
                 except Exception:
-                    pass
+                    logger.exception("GaussianBlur fallback failed, using unblurred accumulator")
             maxv = summary_vis.max()
             if maxv <= 0:
                 norm = (summary_vis * 0).astype(np.uint8)
@@ -92,7 +97,8 @@ def process_and_write_frame(
                 try:
                     opened = bool(heatmap_video_writer.writer.isOpened())
                 except Exception:
-                    opened = True
+                    logger.exception("Failed to query heatmap video writer open state")
+                    opened = False
             if opened:
                 heatmap_video_writer.write(heat_col)
                 heatmap_frames_written += 1
@@ -101,6 +107,7 @@ def process_and_write_frame(
                     print(f"[WARN] heatmap_video_writer is not open; heatmap frames will not be written.")
                     heatmap_warned = True
         except Exception:
+            logger.exception("Error while attempting to write heatmap frame")
             if not heatmap_warned:
                 print(f"[WARN] error while attempting to write heatmap frame")
                 heatmap_warned = True
